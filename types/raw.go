@@ -93,10 +93,13 @@ var (
 		"READ_RECEIPT_COUNT",
 		"QUOTE_ID",
 		"QUOTE_AUTHOR",
+		"QUOTE_BODY",
 		"QUOTE_ATTACHMENT",
 		"QUOTE_MISSING",
 		"SHARED_CONTACTS",
 		"UNIDENTIFIED",
+		"LINK_PREVIEWS",
+		"VIEW_ONCE",
 	}
 
 	SMSPartCSVHeaders = []string{
@@ -129,8 +132,94 @@ var (
 		"WIDTH",
 		"HEIGHT",
 		"CAPTION",
+		"STICKER_PACK_ID",
+		"STICKER_PACK_KEY",
+		"STICKER_ID",
+		"DATA_HASH",
+		"BLUR_HASH",
+		"TRANSFORM_PROPERTIES",
 	}
 )
+
+
+// SQLRecipient info
+//
+// https://github.com/signalapp/Signal-Android/blob/master/src/org/thoughtcrime/securesms/database/RecipientDatabase.java#L148
+type SQLRecipient struct {
+	ID                     uint64
+	UUID                   *string
+	Phone                  string
+	Email                  *string
+	GroupID                *string
+	Blocked                uint64 // default 0
+	MessageRingtone        *string
+	MessageVibrate         uint64 // default 0
+	CallRingtone           *string
+	CallVibrate            uint64 // default 0
+	NotificationChannel    *string
+	MuteUntil              uint64 // default 0
+	Color                  *string
+	SeenInviteReminder     uint64 // default 0
+	DefaultSubscriptionID  uint64 // default -1
+	MessageExpirationTime  uint64 // default 0
+	Registered             uint64 // default 0
+	SystemDisplayName      *string
+	SystemPhotoURI         *string
+	SystemPhoneLabel       *string
+	SystemPhoneType        uint64 // default -1
+	SystemContactURI       *string
+	ProfileKey             *string
+	SignalProfileName      *string
+	SignalProfileAvatar    *string
+	ProfileSharing         uint64 // default 0
+	UnidentifiedAccessMode uint64 // default 0
+	ForceSmsSelection      uint64 // default 0
+}
+
+// StatementToRecipient converts a of SQL statement to a single recipîent.
+func StatementToRecipient(sql *signal.SqlStatement) *SQLRecipient {
+	return ParametersToRecipient(sql.GetParameters())
+}
+
+// ParametersToRecipient converts a set of SQL parameters to a single recipient.
+func ParametersToRecipient(ps []*signal.SqlStatement_SqlParameter) *SQLRecipient {
+	if len(ps) < 28 {
+		return nil
+	}
+
+	result := &SQLRecipient{
+		ID:                     ps[0].GetIntegerParameter(),
+		UUID:                   ps[1].StringParamter,
+		Phone:                  ps[2].GetStringParamter(),
+		Email:                  ps[3].StringParamter,
+		GroupID:                ps[4].StringParamter,
+		Blocked:                ps[5].GetIntegerParameter(),
+		MessageRingtone:        ps[6].StringParamter,
+		MessageVibrate:         ps[7].GetIntegerParameter(),
+		CallRingtone:           ps[8].StringParamter,
+		CallVibrate:            ps[9].GetIntegerParameter(),
+		NotificationChannel:    ps[10].StringParamter,
+		MuteUntil:              ps[11].GetIntegerParameter(),
+		Color:                  ps[12].StringParamter,
+		SeenInviteReminder:     ps[13].GetIntegerParameter(),
+		DefaultSubscriptionID:  ps[14].GetIntegerParameter(),
+		MessageExpirationTime:  ps[15].GetIntegerParameter(),
+		Registered:             ps[16].GetIntegerParameter(),
+		SystemDisplayName:      ps[17].StringParamter,
+		SystemPhotoURI:         ps[18].StringParamter,
+		SystemPhoneLabel:       ps[19].StringParamter,
+		SystemPhoneType:        ps[20].GetIntegerParameter(),
+		SystemContactURI:       ps[21].StringParamter,
+		ProfileKey:             ps[22].StringParamter,
+		SignalProfileName:      ps[23].StringParamter,
+		SignalProfileAvatar:    ps[24].StringParamter,
+		ProfileSharing:         ps[25].GetIntegerParameter(),
+		UnidentifiedAccessMode: ps[26].GetIntegerParameter(),
+		ForceSmsSelection:      ps[27].GetIntegerParameter(),
+	}
+
+	return result
+}
 
 // SQLSMS info
 //
@@ -138,7 +227,7 @@ var (
 type SQLSMS struct {
 	ID                   uint64
 	ThreadID             *uint64
-	Address              *string
+	RecipientID          *string
 	AddressDeviceID      uint64 // default 1
 	Person               *uint64
 	DateReceived         *uint64
@@ -175,7 +264,7 @@ func ParametersToSMS(ps []*signal.SqlStatement_SqlParameter) *SQLSMS {
 	result := &SQLSMS{
 		ID:                   ps[0].GetIntegerParameter(),
 		ThreadID:             ps[1].IntegerParameter,
-		Address:              ps[2].StringParamter,
+		RecipientID:          ps[2].StringParamter,
 		AddressDeviceID:      ps[3].GetIntegerParameter(),
 		Person:               ps[4].IntegerParameter,
 		DateReceived:         ps[5].IntegerParameter,
@@ -218,7 +307,7 @@ type SQLMMS struct {
 	PartCount            *uint64
 	CtT                  *string
 	ContentLocation      *string
-	Address              *string
+	RecipientID          *string
 	AddressDeviceID      *uint64
 	Expiry               *uint64
 	MCls                 *string
@@ -281,7 +370,7 @@ func ParametersToMMS(ps []*signal.SqlStatement_SqlParameter) *SQLMMS {
 		PartCount:            ps[10].IntegerParameter,
 		CtT:                  ps[11].StringParamter,
 		ContentLocation:      ps[12].StringParamter,
-		Address:              ps[13].StringParamter,
+		RecipientID:          ps[13].StringParamter,
 		AddressDeviceID:      ps[14].IntegerParameter,
 		Expiry:               ps[15].IntegerParameter,
 		MCls:                 ps[16].StringParamter,
@@ -355,6 +444,12 @@ type SQLPart struct {
 	Width                uint64  // default 0
 	Height               uint64  // default 0
 	Caption              *string //default null
+	StickerPackID        *string //default null
+	StickerPackKey       *string //default null
+	StickerID            *uint64 //default -1
+	DataHash             *string //default null
+	BlurHash             *string //default null
+	TransformProperties  *string //default null
 }
 
 // StatementToPart converts a of SQL statement to a single part.
@@ -397,5 +492,11 @@ func ParametersToPart(ps []*signal.SqlStatement_SqlParameter) *SQLPart {
 		Width:                ps[26].GetIntegerParameter(),
 		Height:               ps[27].GetIntegerParameter(),
 		//Caption:              ps[28].StringParamter,
+		//StickerPackID			ps[29].StringParamter,
+		//StickerPackKey        ps[30].StringParamter,
+		//StickerID				ps[31].StringParamter,
+		//DataHash				ps[32].StringParamter,
+		//BlurHash				ps[33].StringParamter,
+		//TransformProperties	ps[34].StringParamter,
 	}
 }
